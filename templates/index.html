@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preload" as="image" href="{{ url_for('static', filename='spin.gif') }}">
+    <title>Document</title>
+    <style>
+        body {
+            background-color: rgb(44, 40, 40);
+            background-image: url("https://i.redd.it/zj0bwfmuz4n01.jpg");
+            background-repeat: no-repeat;
+            background-size: cover;
+            color: #fae0d3;
+            margin: auto;
+            padding: 1rem;
+            width: max-content;
+        }
+
+        #paint {
+            border: 4px solid #669bbc;
+            background-color: #fdf0d5;
+            width: 16rem;
+            height: 16rem;
+            border-radius: .5rem;
+            margin-bottom: 1rem;
+        }
+
+        #predicted {
+            font-size: 1.8rem;
+            padding: 1rem 0;
+            background: #3C6759;
+            width: 100%;
+            border: 2px solid #fdf0d5;
+            border-radius: .5rem;
+            text-align: center;
+        }
+
+        button {
+            margin-top: .5rem;
+            font-size: 36px;
+            background: #c1121f;
+            padding: .5rem 0;
+            color: #fae0d3;
+            border-radius: 2rem;
+            border: 2px solid #fdf0d5;
+            width: 100%;
+            text-align: center;
+        }
+        
+        #number {
+            color: white;
+            font-weight: bolder;
+            font-size: 2.4rem;
+        }
+        #number img {height: 2rem;}
+    </style>
+</head>
+
+<body>
+    <div id="paint">
+        <canvas id="myCanvas"></canvas>
+    </div>
+    <div id="predicted">Predicted number:
+        <div id="number"></div>
+    </div>
+    <button onclick="location.reload();">Clear</button>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.9.0/dist/tf.min.js"></script>
+    <script>
+        var canvas = document.getElementById('myCanvas');
+        var context = canvas.getContext('2d');
+        var compuetedStyle = getComputedStyle(document.getElementById('paint'));
+        canvas.width = parseInt(compuetedStyle.getPropertyValue('width'));
+        canvas.height = parseInt(compuetedStyle.getPropertyValue('height'));
+
+        var mouse = { x: 0, y: 0 };
+
+        canvas.addEventListener('mousemove', function (e) {
+            mouse.x = e.pageX - this.offsetLeft;
+            mouse.y = e.pageY - this.offsetTop;
+        }, false);
+
+        context.lineWidth = 25;
+        context.lineJoin = 'round';
+        context.lineCap = 'round';
+        context.strokeStyle = '#FF8533';
+
+        canvas.addEventListener('mousedown', function (e) {
+            context.moveTo(mouse.x, mouse.y);
+            context.beginPath();
+            canvas.addEventListener('mousemove', onPaint, false);
+        }, false);
+
+        canvas.addEventListener('mouseup', function () {
+            $('#number').html('<img id="spinner" src="{{ url_for("static", filename="spin.gif") }}\"/>');
+            canvas.removeEventListener('mousemove', onPaint, false);
+            var img = new Image();
+            img.onload = function () {
+                context.drawImage(img, 0, 0, 28, 28);
+                var imageData = context.getImageData(0, 0, 28, 28);
+                var input = tf.browser.fromPixels(imageData, 1).toFloat().div(255).expandDims();
+                predict(input);
+            };
+            img.src = canvas.toDataURL('image/png');
+        }, false);
+
+        var onPaint = function () {
+            context.lineTo(mouse.x, mouse.y);
+            context.stroke();
+        };
+
+        tf.loadLayersModel("{{ url_for('static', filename='model.json') }}").then(function (model) {
+            window.model = model;
+        });
+
+        var predict = function (input) {
+            if (window.model) {
+                window.model.predict(input).array().then(function (scores) {
+                    scores = scores[0];
+                    var predicted = scores.indexOf(Math.max(...scores));
+                    $('#number').html(predicted);
+                });
+            } else {
+                // The model takes a bit to load, if we are too fast, wait
+                setTimeout(function () { predict(input) }, 50);
+            }
+        }
+
+        $('#clear').click(function () {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            $('#number').html('');
+        });
+    </script>
+</body>
+
+</html>
